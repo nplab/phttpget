@@ -461,7 +461,7 @@ setup_connection(struct addrinfo *res, int *sd) {
             mylog(LOG_ERR, "[%d][%s] - UDP encapsulation unsupported", __LINE__, __func__);
             exit(EXIT_FAILURE);
 #endif
-}
+        }
     }
 
 #ifdef SO_NOSIGPIPE
@@ -470,6 +470,12 @@ setup_connection(struct addrinfo *res, int *sd) {
     setsockopt(*sd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&val, sizeof(int));
 #endif
 
+    val = 2 << 19;
+    if (setsockopt(*sd, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) < 0) {
+        mylog(LOG_ERR, "[%d][%s] - setsockopt() failed", __LINE__, __func__);
+        exit(EXIT_FAILURE);
+    }
+
     /* ... and connect to the server. */
     if (connect(*sd, res->ai_addr, res->ai_addrlen)) {
         close(*sd);
@@ -477,6 +483,13 @@ setup_connection(struct addrinfo *res, int *sd) {
         mylog(LOG_ERR, "[%d][%s] - connect() failed", __LINE__, __func__);
         return -1;
     }
+
+    statuslen = sizeof(val);
+    if (getsockopt(*sd, SOL_SOCKET, SO_RCVBUF, &val, &statuslen) < 0) {
+        mylog(LOG_ERR, "[%d][%s] - getsockopt() failed", __LINE__, __func__);
+        exit(EXIT_FAILURE);
+    }
+    mylog(LOG_INF, "[%d][%s] - SO_RCVBUG: %d", __LINE__, __func__, val);
 
     if (protocol == IPPROTO_SCTP) {
         /* Get the actual number of outgoing streams. */
