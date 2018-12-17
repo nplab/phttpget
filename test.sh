@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #export HTTP_USER_AGENT="phttpget yeah!"
 #export HTTP_TIMEOUT=1 # seconds!
 #export HTTP_TRANSPORT_PROTOCOL=TCP # TCP|SCTP
@@ -9,7 +9,7 @@
 #export HTTP_PIPE=NO # use pipes (e.g. for pReplay)
 #export HTTP_IP_PROTOCOL=0 # 0/4/6
 
-REQUEST_FILE=/files/16M
+REQUEST_FILE=/files/128M
 REQUEST_HOST=bsd3.nplab.de
 REQUEST_TIMEOUT=20s
 
@@ -35,28 +35,24 @@ runTest(){
     fi
 }
 
-export HTTP_IP_PROTOCOL=4
-export HTTP_TRANSPORT_PROTOCOL=TCP
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
+ip_protocols=(0 4 6)
+transport_protocols=(TCP, SCTP)
+sctp_encaps_ports=(0, 9899)
 
-export HTTP_IP_PROTOCOL=6
-export HTTP_TRANSPORT_PROTOCOL=TCP
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
+for ip_protocol in "${ip_protocols[@]}"; do
+    for transport_protocol in "${transport_protocols[@]}"; do
+        export HTTP_IP_PROTOCOL=$ip_protocol
+        export HTTP_TRANSPORT_PROTOCOL=$transport_protocol
 
-export HTTP_IP_PROTOCOL=4
-export HTTP_TRANSPORT_PROTOCOL=SCTP
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
-
-export HTTP_IP_PROTOCOL=6
-export HTTP_TRANSPORT_PROTOCOL=SCTP
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
-
-export HTTP_IP_PROTOCOL=4
-export HTTP_TRANSPORT_PROTOCOL=SCTP
-export HTTP_SCTP_UDP_ENCAPS_PORT=9899
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
-
-export HTTP_IP_PROTOCOL=6
-export HTTP_TRANSPORT_PROTOCOL=SCTP
-export HTTP_SCTP_UDP_ENCAPS_PORT=9899
-runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
+        if [ "$transport_protocol" = "SCTP" ]; then
+            for sctp_encaps_port in "${sctp_encaps_ports[@]}"; do
+                export HTTP_SCTP_UDP_ENCAPS_PORT=$sctp_encaps_port
+                printf "IP: %s - PROTO: %s - ENCAPS : %s\n" "$ip_protocol" "$transport_protocol" "$sctp_encaps_port"
+                runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
+            done
+        else
+            printf "IP: %s - PROTO: %s\n" "$ip_protocol" "$transport_protocol"
+            runTest ./phttpget $REQUEST_HOST $REQUEST_FILE
+        fi
+    done
+done

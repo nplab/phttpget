@@ -1,5 +1,5 @@
 /*-
- * Copyright 2005, 2016 Colin Percival, Felix Weinrank
+ * Copyright 2005, 2016, 2018 Colin Percival, Felix Weinrank
  * All rights reserved
  *
  * Redistribution and use in source and binary forms, with or without
@@ -223,7 +223,6 @@ readenv(void)
 {
     char *p;
     long http_timeout;
-    long port;
     long sctp_max_streams_temp;
     long ip_protocol_temp;
 
@@ -259,14 +258,9 @@ readenv(void)
 
     env_HTTP_SCTP_UDP_ENCAPS_PORT = getenv("HTTP_SCTP_UDP_ENCAPS_PORT");
     if (env_HTTP_SCTP_UDP_ENCAPS_PORT != NULL) {
-        port = strtol(env_HTTP_SCTP_UDP_ENCAPS_PORT, &p, 10);
-        if ((*env_HTTP_SCTP_UDP_ENCAPS_PORT == '\0') || (*p != '\0') || (port < 0) || (port > 65535)) {
-            mylog(LOG_ERR, "HTTP_SCTP_UDP_ENCAPS_PORT (%s) is not a valid port number", env_HTTP_SCTP_UDP_ENCAPS_PORT);
-            exit(EXIT_FAILURE);
-        } else {
-            udp_encaps_port = (in_port_t)port;
-        }
+        udp_encaps_port = (in_port_t) strtol(env_HTTP_SCTP_UDP_ENCAPS_PORT, &p, 10);
     }
+    mylog(LOG_PRG, "Settings - SCTP UDP encaps port : %d (%s)", udp_encaps_port, (udp_encaps_port > 0) ? "enabled" : "disabled");
 
     env_HTTP_DEBUG = getenv("HTTP_DEBUG");
     if (env_HTTP_DEBUG != NULL) {
@@ -334,9 +328,6 @@ readenv(void)
                 mylog(LOG_ERR, "ip_protocol out of range - shoud be 0/4/6");
                 exit(EXIT_FAILURE);
         }
-
-
-
     }
 
     if (protocol == IPPROTO_SCTP && use_pipelining) {
@@ -1086,6 +1077,7 @@ main(int argc, char *argv[])
     int len_left = 0;
     uint8_t num_req = 0;
     char *bufptr = NULL;
+    struct timeval tv_transfer_end, tv_transfer_start, tv_transfer_diff;
 
     /* Initialize open (unsent) requests and pending requests queues */
     TAILQ_INIT(&requests_open);
@@ -1162,6 +1154,8 @@ main(int argc, char *argv[])
 
         mylog(LOG_INF, "[%d][%s] - %d requests open", __LINE__, __func__, num_req_open);
     }
+
+    gettimeofday(&tv_transfer_start, NULL);
 
     /* Do the fetching */
     while (num_req_open > 0 || num_req_pending > 0 || use_pipe || use_stdin) {
@@ -1515,6 +1509,16 @@ cleanupconn:
         continue;
     }
 
+    gettimeofday(&tv_transfer_end, NULL);
+    tv_transfer_diff.tv_sec = tv_transfer_end.tv_sec - tv_transfer_start.tv_sec;
+
+    if (tv_transfer_start.tv_usec < tv_transfer_end.tv_usec) {
+        tv_transfer_diff.tv_usec = tv_transfer_end.tv_usec - tv_transfer_start.tv_usec;
+    } else {
+        tv_transfer_diff.tv_sec -= 1;
+        tv_transfer_diff.tv_usec = 1000000 + tv_transfer_end.tv_usec - tv_transfer_start.tv_usec;
+    }
+
     mylog(LOG_PRG, "###### STATS ######");
     mylog(LOG_PRG, "\trequests      : %d", num_req_finished);
     mylog(LOG_PRG, "\t- # 200       : %d", stat_status_200);
@@ -1522,6 +1526,7 @@ cleanupconn:
     mylog(LOG_PRG, "\t- # other     : %d", stat_status_other);
     mylog(LOG_PRG, "\tbytes header  : %d", stat_bytes_header);
     mylog(LOG_PRG, "\tbytes payload : %d", stat_bytes_payload);
+    mylog(LOG_PRG, "\tMbit/s        : %f", ((stat_bytes_header + stat_bytes_payload) * 8) / (tv_transfer_diff.tv_sec * 1000000.0 + tv_transfer_diff.tv_usec));
     free(resbuf);
     freeaddrinfo(res0);
 
