@@ -160,6 +160,26 @@ strnstr(const char *s, const char *find, size_t slen)
 }
 #endif
 
+static const char *bytes2human(uint64_t bytes)
+{
+    char *suffix[] = {"", "K", "M", "G", "T"};
+    char suffix_length = sizeof(suffix) / sizeof(suffix[0]);
+    int i = 0;
+    double human_size = bytes;
+    static char output[200];
+
+    if (bytes > 1024) {
+        for (i = 0; (bytes / 1024) > 0 && i < suffix_length - 1; i++) {
+
+            human_size = bytes / 1024.0;
+            bytes /= 1024;
+        }
+    }
+
+    snprintf(output, sizeof(output), "%.02lf %s", human_size, suffix[i]);
+    return output;
+}
+
 /*
  * Write log entry
  */
@@ -1524,9 +1544,9 @@ cleanupconn:
     mylog(LOG_PRG, "\t- # 200       : %d", stat_status_200);
     mylog(LOG_PRG, "\t- # 404       : %d", stat_status_404);
     mylog(LOG_PRG, "\t- # other     : %d", stat_status_other);
-    mylog(LOG_PRG, "\tbytes header  : %d", stat_bytes_header);
-    mylog(LOG_PRG, "\tbytes payload : %d", stat_bytes_payload);
-    mylog(LOG_PRG, "\tMbit/s        : %f", ((stat_bytes_header + stat_bytes_payload) * 8) / (tv_transfer_diff.tv_sec * 1000000.0 + tv_transfer_diff.tv_usec));
+    mylog(LOG_PRG, "\tsize header   : %sByte - (%d bytes)", bytes2human(stat_bytes_header), stat_bytes_header);
+    mylog(LOG_PRG, "\tsize payload  : %sByte - (%d bytes)", bytes2human(stat_bytes_payload), stat_bytes_payload);
+    mylog(LOG_PRG, "\ttransmission  : %sBit/s", bytes2human(((stat_bytes_header + stat_bytes_payload) * 8) / (tv_transfer_diff.tv_sec + tv_transfer_diff.tv_usec / 1000000.0)));
     free(resbuf);
     freeaddrinfo(res0);
 

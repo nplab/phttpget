@@ -36,8 +36,8 @@ runTest(){
 }
 
 ip_protocols=(0 4 6)
-transport_protocols=(TCP, SCTP)
-sctp_encaps_ports=(0, 9899)
+transport_protocols=(TCP SCTP)
+sctp_encaps_ports=(0 9899)
 
 for ip_protocol in "${ip_protocols[@]}"; do
     for transport_protocol in "${transport_protocols[@]}"; do
